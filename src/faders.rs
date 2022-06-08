@@ -1,6 +1,7 @@
 use serde_yaml::Value;
 use serde_yaml::Mapping;
 use std::time::Instant;
+use std::f64::consts::PI;
 
 pub struct Fader {
     fader_type: FaderType,
@@ -17,10 +18,10 @@ pub enum FaderType {
 
 pub struct Movement {
     center: Option<u8>,
-    delay_percentage: Option<u8>,
-    delay_ms: Option<u8>,
-    duration_percentage: Option<u8>,
-    duration_ms: Option<u8>,
+    delay_percentage: Option<u64>,
+    delay_ms: Option<u64>,
+    duration_percentage: Option<u64>,
+    duration_ms: Option<u64>,
     max: u8,
     min: u8,
     repetition: u8,
@@ -29,6 +30,7 @@ pub struct Movement {
 }
 
 pub enum Shape {
+    Cosine,
     Saw,
     Sine,
     Square,
@@ -42,7 +44,7 @@ impl Fader {
 
     pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant) {
         if let Some(movement) = &self.movement {
-            self.current_value = self.current_value + 1;
+            self.current_value = calculate_next_step(movement, selected_tempo, start_time, self.current_value);
         } else {
             self.current_value = self.value;
         }
@@ -109,6 +111,7 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         } else if key.is_string() && key.as_str().unwrap().eq("shape") && value.is_string() {
             let shape = value.as_str().unwrap();
             match shape {
+                "cosine" => movement.shape = Shape::Cosine,
                 "saw" => movement.shape = Shape::Saw,
                 "sine" => movement.shape = Shape::Sine,
                 "sqare" => movement.shape = Shape::Square,
@@ -118,14 +121,47 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         } else if key.is_string() && key.as_str().unwrap().eq("center") && value.is_number() {
             movement.center = Some(value.as_u64().unwrap() as u8);
         } else if key.is_string() && key.as_str().unwrap().eq("delay_percentage") && value.is_number() {
-            movement.delay_percentage = Some(value.as_u64().unwrap() as u8);
+            movement.delay_percentage = Some(value.as_u64().unwrap() as u64);
         } else if key.is_string() && key.as_str().unwrap().eq("delay_ms") && value.is_number() {
-            movement.delay_ms = Some(value.as_u64().unwrap() as u8);
+            movement.delay_ms = Some(value.as_u64().unwrap() as u64);
         } else if key.is_string() && key.as_str().unwrap().eq("duration_percentage") && value.is_number() {
-            movement.duration_percentage = Some(value.as_u64().unwrap() as u8);
+            movement.duration_percentage = Some(value.as_u64().unwrap() as u64);
         } else if key.is_string() && key.as_str().unwrap().eq("duration_ms") && value.is_number() {
-            movement.duration_ms = Some(value.as_u64().unwrap() as u8);
+            movement.duration_ms = Some(value.as_u64().unwrap() as u64);
+        }
+        // Ensure either percentage or ms is set
+        if movement.duration_percentage.is_none() && movement.duration_ms.is_none() {
+            movement.duration_percentage = Some(400);
+        }
+        if movement.delay_percentage.is_none() || movement.delay_ms.is_none() {
+            movement.delay_percentage = Some(0);
         }
     }
     movement
+}
+
+fn calculate_next_step(movement: &Movement, selected_tempo: u8, start_time: Instant, start_value: u8) -> u8 {
+    match movement.shape {
+        Shape::Sine => {
+            start_value
+        },
+        _ => {
+            start_value
+        }
+    }
+}
+
+fn calculate_cos_value(step: f64, bps: f64, mut amplitude: f64) -> f64 {
+    if amplitude > 0.5 {
+        amplitude = 0.5;
+    }
+
+    if amplitude < -0.5 {
+        amplitude = -0.5;
+    }
+
+    let b = 2.0 * PI * bps;
+    let c = 1.0 / (bps * 2.0);
+
+    amplitude * (-f64::cos(b * (step - c))) + 0.5
 }

@@ -128,7 +128,6 @@ impl Dmxis {
         let mut padded_frame = Vec::with_capacity(capacity);
         padded_frame.extend_from_slice(&frame[0..min(input_size, capacity)]);
         padded_frame.resize(capacity, 0);
-        // println!("Len of frame {}", padded_frame.len());
         let written = self.write_packet(SEND_PACKET_COMMAND, &padded_frame, true);
         match written {
             Ok(()) => (),
