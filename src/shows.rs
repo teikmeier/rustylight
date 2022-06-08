@@ -148,9 +148,9 @@ pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
     }
     let selected_show = show_slot.unwrap();
     println!("Selected show:           {}", &selected_show.name);
-    println!("");
+    // println!("");
     // selected_show.print_content();
-    println!("");
+    // println!("");
     Ok(selected_show)
 }
 

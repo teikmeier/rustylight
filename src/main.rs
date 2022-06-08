@@ -11,7 +11,6 @@ use shows::Show;
 
 use core::time::Duration;
 use std::thread::sleep;
-use std::error::Error;
 use std::time::Instant;
 use std::net::UdpSocket;
 
@@ -30,30 +29,26 @@ fn main() -> Result<(), ::std::io::Error> {
     let config = config_result.unwrap();
     let show = shows::load_show(&config);
     let dmx_port = enttec_devices::open_dmxis_port(&config);
-    let mut midi_port = open_midi_port(&config);
+    let mut midi_port = midi_ports::new(&config);
     let _ = midi_port.connect(&config);
     let udp_socket = udp_sockets::open_udp_socket();
+    println!("");
 
     if show.is_err() || dmx_port.is_err() || !midi_port.is_open() || udp_socket.is_err() {
-        println!("");
         println!("Destroying the application. See logs for further details.");
         println!("Bye!");
         println!("");
         return Ok(());
     }
 
-    println!("");
     start_game_loop(&config, show.unwrap(), dmx_port.unwrap(), udp_socket.unwrap());
-    return Ok(());
-}
 
-fn open_midi_port(config: &BaseConfig) -> midi_ports::MidiPort {
-    midi_ports::new(config)
+    return Ok(());
 }
 
 fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp_socket: UdpSocket) {
     let frame_duration = 1000/config.fps;
-
+    let mut sleep_duration;
     println!("Here we go!");
     println!("");
     loop {
@@ -68,12 +63,9 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp
         // Render internal state to DMX
         let dmx_data = show.get_dmx_data();
         dmx_port.write(&dmx_data);
-        // println!("");
-        // println!("{dmx_data:?}");
 
         // Fill remaining frame with idle time
         let elapsed = loop_start_time.elapsed().as_millis() as u64;
-        let sleep_duration;
         if elapsed < frame_duration {
             sleep_duration = frame_duration - elapsed;
         } else {
