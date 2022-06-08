@@ -59,10 +59,12 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp
 
         // Update internal state
         show.update(udp_message);
+        show.update_state();
 
         // Render internal state to DMX
         let dmx_data = show.get_dmx_data();
         dmx_port.write(&dmx_data);
+        // println!("{dmx_data:?}");
 
         // Fill remaining frame with idle time
         let elapsed = loop_start_time.elapsed().as_millis() as u64;

@@ -1,10 +1,12 @@
 use serde_yaml::Value;
 use serde_yaml::Mapping;
+use std::time::Instant;
 
 pub struct Fader {
     fader_type: FaderType,
     channel: usize,
     value: u8,
+    current_value: u8,
     movement: Option<Movement>
 }
 
@@ -27,14 +29,23 @@ pub struct Movement {
 }
 
 pub enum Shape {
-    Linear,
-    Sine,
     Saw,
+    Sine,
+    Square,
+    Triangle,
 }
 
 impl Fader {
     pub fn get_value(&self) -> u8 {
-        self.value
+        self.current_value
+    }
+
+    pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant) {
+        if let Some(movement) = &self.movement {
+            self.current_value = self.current_value + 1;
+        } else {
+            self.current_value = self.value;
+        }
     }
 
     pub fn get_channel(&self) -> usize {
@@ -50,12 +61,14 @@ pub fn fader_from_mapping(channel: &Value, properties: &Value) -> Option<Fader> 
         fader_type: FaderType::Default,
         channel: channel.as_u64().unwrap() as usize,
         value: 0,
+        current_value: 0,
         movement: None,
     };
     if let Some(props) = properties.as_mapping() {
         for (key, value) in props.iter() {
             if key.is_string() && key.eq("value") && value.is_number() {
                 fader.value = value.as_u64().unwrap() as u8;
+                fader.current_value = value.as_u64().unwrap() as u8;
             } else if key.is_string() && key.eq("type") && value.is_string() {
                 let fader_type = value.as_str().unwrap();
                 match fader_type {
@@ -96,9 +109,10 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         } else if key.is_string() && key.as_str().unwrap().eq("shape") && value.is_string() {
             let shape = value.as_str().unwrap();
             match shape {
-                "sine" => movement.shape = Shape::Sine,
-                "linear" => movement.shape = Shape::Linear,
                 "saw" => movement.shape = Shape::Saw,
+                "sine" => movement.shape = Shape::Sine,
+                "sqare" => movement.shape = Shape::Square,
+                "triangle" => movement.shape = Shape::Triangle,
                 _ => movement.shape = Shape::Sine,
             }
         } else if key.is_string() && key.as_str().unwrap().eq("center") && value.is_number() {

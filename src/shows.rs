@@ -36,18 +36,18 @@ impl Show {
                 self.selected_tempo = next_tempo;
             }
         }
-        let mut selected_scene = 0;
         if self.songs.len() > self.selected_song {
-            selected_scene = self.songs[self.selected_song].update(patch);
+            self.songs[self.selected_song].update(patch);
         }
-        // let current_song = &self.songs[self.selected_song];
-        // println!("Song: {}. {}", self.selected_song, current_song.name);
-        // current_song.print_selected_scene();
-        // println!("");
-        // println!("Song: {:?}, Scene: {:?}, Tempo: {:?}", self.selected_song, selected_scene, self.selected_tempo);
     }
 
-    pub fn get_dmx_data(&mut self) -> [u8; 255] {
+    pub fn update_state(&mut self) {
+        if self.songs.len() > self.selected_song {
+            self.songs[self.selected_song].update_state(self.selected_tempo);
+        }
+    }
+
+    pub fn get_dmx_data(&self) -> [u8; 255] {
         if self.songs.len() > self.selected_song {
             self.songs[self.selected_song].get_dmx_data()
         } else {
@@ -87,7 +87,13 @@ impl Song {
         self.selected_scene
     }
 
-    pub fn get_dmx_data(&mut self) -> [u8; 255] {
+    pub fn update_state(&mut self, selected_tempo: u8) {
+        if self.scenes.len() > self.selected_scene {
+            self.scenes[self.selected_scene].update_state(selected_tempo);
+        }
+    }
+
+    pub fn get_dmx_data(&self) -> [u8; 255] {
         if self.scenes.len() > self.selected_scene {
             self.scenes[self.selected_scene].get_dmx_data()
         } else {
@@ -117,7 +123,13 @@ impl Scene {
         self.start_time = Instant::now();
     }
 
-    pub fn get_dmx_data(&mut self) -> [u8; 255] {
+    pub fn update_state(&mut self, selected_tempo: u8) {
+        for fader in &mut self.faders {
+            fader.update_state(selected_tempo, self.start_time);
+        }
+    }
+
+    pub fn get_dmx_data(&self) -> [u8; 255] {
         let mut dmx_data = [0; 255];
         for fader in &self.faders {
             dmx_data[fader.get_channel()] = fader.get_value();
