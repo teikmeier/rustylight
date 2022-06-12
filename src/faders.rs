@@ -43,7 +43,7 @@ impl Fader {
 
     pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant) {
         if let Some(movement) = &self.movement {
-            self.current_value = calculate_next_step(movement, selected_tempo, start_time, self.current_value);
+            self.current_value = calculate_movement(movement, selected_tempo, start_time, self.current_value);
         } else {
             self.current_value = self.value;
         }
@@ -142,7 +142,9 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
     movement
 }
 
-fn calculate_next_step(movement: &Movement, beats_per_minute: u8, start_time: Instant, current_value: u8) -> u8 {
+fn calculate_movement(movement: &Movement, beats_per_minute: u8, start_time: Instant, current_value: u8) -> u8 {
+    let max = movement.max as f64;
+    let min = movement.min as f64;
     let beat_duration_ms: f64 = 60000.0 / beats_per_minute as f64;
     let movement_duration_ms: f64 = if let Some(percentage) = movement.duration_percentage {
         beat_duration_ms * (percentage as f64 / 100.0)
@@ -153,28 +155,77 @@ fn calculate_next_step(movement: &Movement, beats_per_minute: u8, start_time: In
     };
     let elapsed = start_time.elapsed().as_millis() as f64;
     let current_position = (elapsed % movement_duration_ms) / movement_duration_ms;
-    let new_unified_value = cos_function(current_position);
-    let max = movement.max as f64;
-    let min = movement.min as f64;
-    let new_value = ((max - min) * new_unified_value) + min;
 
     match movement.shape {
         Shape::Sine => {
-            new_value as u8
+            let new_unified_value = cos_function(current_position, movement.reverse);
+            (((max - min) * new_unified_value) + min) as u8
         },
         Shape::Square => {
+            let new_unified_value = cos_function(current_position, movement.reverse);
             if new_unified_value < 0.5 {
                 min as u8
             } else {
                 max as u8
             }
         },
+        Shape::Saw => {
+            let new_unified_value = saw_function(current_position, movement.reverse);
+            (((max - min) * new_unified_value) + min) as u8
+        },
+        Shape::Triangle => {
+            let new_unified_value = triangle_function(current_position, movement.reverse);
+            (((max - min) * new_unified_value) + min) as u8
+        }
         _ => {
             current_value
         }
     }
 }
 
-fn cos_function(position: f64) -> f64 {
-    (-1.0 * f64::cos( 2.0 * PI * position ) + 1.0) / 2.0
+fn cos_function(mut position: f64, reverse: bool) -> f64 {
+    let mut reverse_operator = -1.0;
+    if position > 1.0 {
+        position = 1.0;
+    } else if position < 0.0 {
+        position = 0.0;
+    }
+    if reverse {
+        reverse_operator = 1.0;
+    }
+    (-reverse_operator * f64::cos( 2.0 * PI * position ) + 1.0) / 2.0
+}
+
+fn saw_function(mut position: f64, reverse: bool) -> f64 {
+    if position > 1.0 {
+        position = 1.0;
+    } else if position < 0.0 {
+        position = 0.0;
+    }
+    if reverse {
+        return 1.0 - position;
+    }
+    return position;
+}
+
+fn triangle_function(mut position: f64, reverse: bool) -> f64 {
+    let mut reverse_operator = -1.0;
+    if position > 1.0 {
+        position = 1.0;
+    } else if position < 0.0 {
+        position = 0.0;
+    }
+    if !reverse {
+        if position <= 0.5 {
+            position * 2.0
+        } else {
+            1.0 - ((position - 0.5) * 2.0)
+        }
+    } else {
+        if position <= 0.5 {
+            1.0 - (position * 2.0)
+        } else {
+            (position - 0.5) * 2.0
+        }
+    }
 }
