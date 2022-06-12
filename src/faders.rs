@@ -30,7 +30,6 @@ pub struct Movement {
 }
 
 pub enum Shape {
-    Cosine,
     Saw,
     Sine,
     Square,
@@ -111,10 +110,9 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         } else if key.is_string() && key.as_str().unwrap().eq("shape") && value.is_string() {
             let shape = value.as_str().unwrap();
             match shape {
-                "cosine" => movement.shape = Shape::Cosine,
                 "saw" => movement.shape = Shape::Saw,
                 "sine" => movement.shape = Shape::Sine,
-                "sqare" => movement.shape = Shape::Square,
+                "square" => movement.shape = Shape::Square,
                 "triangle" => movement.shape = Shape::Triangle,
                 _ => movement.shape = Shape::Sine,
             }
@@ -129,39 +127,54 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         } else if key.is_string() && key.as_str().unwrap().eq("duration_ms") && value.is_number() {
             movement.duration_ms = Some(value.as_u64().unwrap() as u64);
         }
-        // Ensure either percentage or ms is set
-        if movement.duration_percentage.is_none() && movement.duration_ms.is_none() {
-            movement.duration_percentage = Some(400);
-        }
-        if movement.delay_percentage.is_none() || movement.delay_ms.is_none() {
-            movement.delay_percentage = Some(0);
-        }
+    }
+    // Ensure max is bigger than min
+    if movement.max < movement.min {
+        movement.min = movement.max;
+    }
+    // Ensure either percentage or ms is set
+    if movement.duration_percentage.is_none() && movement.duration_ms.is_none() {
+        movement.duration_percentage = Some(400);
+    }
+    if movement.delay_percentage.is_none() || movement.delay_ms.is_none() {
+        movement.delay_percentage = Some(0);
     }
     movement
 }
 
-fn calculate_next_step(movement: &Movement, selected_tempo: u8, start_time: Instant, start_value: u8) -> u8 {
+fn calculate_next_step(movement: &Movement, beats_per_minute: u8, start_time: Instant, current_value: u8) -> u8 {
+    let beat_duration_ms: f64 = 60000.0 / beats_per_minute as f64;
+    let movement_duration_ms: f64 = if let Some(percentage) = movement.duration_percentage {
+        beat_duration_ms * (percentage as f64 / 100.0)
+    } else if let Some(ms) = movement.duration_ms {
+        ms as f64
+    } else {
+        beat_duration_ms * 4.0
+    };
+    let elapsed = start_time.elapsed().as_millis() as f64;
+    let current_position = (elapsed % movement_duration_ms) / movement_duration_ms;
+    let new_unified_value = cos_function(current_position);
+    let max = movement.max as f64;
+    let min = movement.min as f64;
+    let new_value = ((max - min) * new_unified_value) + min;
+
     match movement.shape {
         Shape::Sine => {
-            start_value
+            new_value as u8
+        },
+        Shape::Square => {
+            if new_unified_value < 0.5 {
+                min as u8
+            } else {
+                max as u8
+            }
         },
         _ => {
-            start_value
+            current_value
         }
     }
 }
 
-fn calculate_cos_value(step: f64, bps: f64, mut amplitude: f64) -> f64 {
-    if amplitude > 0.5 {
-        amplitude = 0.5;
-    }
-
-    if amplitude < -0.5 {
-        amplitude = -0.5;
-    }
-
-    let b = 2.0 * PI * bps;
-    let c = 1.0 / (bps * 2.0);
-
-    amplitude * (-f64::cos(b * (step - c))) + 0.5
+fn cos_function(position: f64) -> f64 {
+    (-1.0 * f64::cos( 2.0 * PI * position ) + 1.0) / 2.0
 }
