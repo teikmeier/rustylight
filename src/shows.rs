@@ -4,6 +4,7 @@ use crate::faders::Fader;
 use std::error::Error;
 use std::time::Instant;
 use std::path::Path;
+use std::fs::DirEntry;
 use std::fs::File;
 use serde_yaml;
 use serde_yaml::Mapping;
@@ -57,9 +58,9 @@ impl Show {
 
     pub fn print_content(&self) {
         println!("{}", self.name);
-        for song in &self.songs {
+        for (i, song) in self.songs.iter().enumerate() {
             println!("");
-            song.print_content();
+            song.print_content(i);
         }
     }
 }
@@ -101,15 +102,16 @@ impl Song {
         }
     }
     
-    pub fn print_content(&self) {
-        println!("  {}", self.name);
-        for scene in &self.scenes {
-            scene.print_content();
+    pub fn print_content(&self, index: usize) {
+        println!("  {} {}", index, self.name);
+        for (i, scene) in self.scenes.iter().enumerate() {
+            scene.print_content(i);
         }
     }
-    pub fn print_selected_scene(&self) {
-        println!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
-    }
+
+    // pub fn print_selected_scene(&self) {
+    //     println!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
+    // }
 }
 
 pub struct Scene {
@@ -137,8 +139,8 @@ impl Scene {
         return dmx_data;
     }
     
-    pub fn print_content(&self) {
-        println!("    {}", self.name);
+    pub fn print_content(&self, index: usize) {
+        println!("    {} {}", index, self.name);
     }
 }
 
@@ -160,9 +162,9 @@ pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
     }
     let selected_show = show_slot.unwrap();
     println!("Selected show:           {}", &selected_show.name);
-    // println!("");
-    // selected_show.print_content();
-    // println!("");
+    println!("");
+    selected_show.print_content();
+    println!("");
     Ok(selected_show)
 }
 
@@ -173,11 +175,10 @@ fn load_show_from_path(path: &Path) -> Show {
         selected_song: 0,
         selected_tempo: 120,
     };
-    for subpath in path.read_dir().expect("read_dir call failed") {
-        if let Ok(subpath) = subpath {
-            if subpath.path().is_dir() {
-                show.songs.push(load_song_from_path(&subpath.path()));
-            }
+    let paths = get_ordered_paths_as_iter(path);
+    for subpath in paths {
+        if subpath.path().is_dir() {
+            show.songs.push(load_song_from_path(&subpath.path()));
         }
     }
     show
@@ -189,12 +190,11 @@ fn load_song_from_path(path: &Path) -> Song {
         scenes: Vec::new(),
         selected_scene: 0,
     };
-    for subpath in path.read_dir().expect("read_dir call failed") {
-        if let Ok(subpath) = subpath {
-            if subpath.path().is_file() &&
-                subpath.path().extension().unwrap().eq("yml") {
-                song.scenes.push(load_scene_from_path(&subpath.path()));
-            }
+    let paths = get_ordered_paths_as_iter(path);
+    for subpath in paths {
+        if subpath.path().is_file() &&
+            subpath.path().extension().unwrap().eq("yml") {
+            song.scenes.push(load_scene_from_path(&subpath.path()));
         }
     }
     song
@@ -224,7 +224,16 @@ fn load_scene_from_path(path: &Path) -> Scene {
     scene
 }
 
-fn load_default_show () -> Show {
+fn get_ordered_paths_as_iter(path: &Path) -> Vec<DirEntry> {
+    let mut paths: Vec<_> = path.read_dir()
+                    .expect("read_dir call failed")
+                    .filter_map(|r| r.ok())
+                    .collect();
+    paths.sort_by_key(|dir| dir.path());
+    return paths;
+}
+
+fn load_default_show() -> Show {
     let lights_off_scene_1 : Scene = Scene {
         name: String::from("Lights off 1"),
         start_time: Instant::now(),

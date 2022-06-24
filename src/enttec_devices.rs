@@ -115,7 +115,7 @@ impl Dmxis {
         Ok(())
     }
 
-    pub fn write(&mut self, frame: &[u8]) -> Result<(), Error> {
+    pub fn write(&mut self, frame: &[u8]) {
         let input_size = frame.len();
         let capacity = match input_size {
             0..=MIN_FRAME_SIZE => MIN_FRAME_SIZE,
@@ -133,19 +133,18 @@ impl Dmxis {
             Ok(()) => (),
             Err(error) => println!("Frame was not successfully written to DMXIS: {:?}", error)
         }
-        Ok(())
     }
 
-    pub fn lights_off(&mut self) -> Result<(), Error> {
-        let empty_frame = vec!(0);
-        self.write(&empty_frame)
-    }
+    // pub fn lights_off(&mut self) {
+    //     let empty_frame = vec!(0);
+    //     self.write(&empty_frame)
+    // }
     
-    pub fn close(&mut self) -> Result<(), Error> {
-        self.lights_off();
-        self.port = None;
-        Ok(())
-    }
+    // pub fn close(&mut self) -> Result<(), Error> {
+    //     self.lights_off();
+    //     self.port = None;
+    //     Ok(())
+    // }
 }
 
 pub fn open_dmxis_port(config: &BaseConfig) -> Result<Dmxis, Box<dyn StdError>> {
