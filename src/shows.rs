@@ -162,9 +162,6 @@ pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
     }
     let selected_show = show_slot.unwrap();
     println!("Selected show:           {}", &selected_show.name);
-    println!("");
-    selected_show.print_content();
-    println!("");
     Ok(selected_show)
 }
 
@@ -235,22 +232,22 @@ fn get_ordered_paths_as_iter(path: &Path) -> Vec<DirEntry> {
 
 fn load_default_show() -> Show {
     let lights_off_scene_1 : Scene = Scene {
-        name: String::from("Lights off 1"),
+        name: String::from("Lights off"),
         start_time: Instant::now(),
         faders: Vec::new(),
     };
     let lights_off_scene_2 : Scene = Scene {
-        name: String::from("Lights off 2"),
+        name: String::from("Lights off"),
         start_time: Instant::now(),
         faders: Vec::new(),
     };
     let lights_off_scene_3 : Scene = Scene {
-        name: String::from("Lights off 3"),
+        name: String::from("Lights off"),
         start_time: Instant::now(),
         faders: Vec::new(),
     };
     let lights_off_scene_4 : Scene = Scene {
-        name: String::from("Lights off 4"),
+        name: String::from("Lights off"),
         start_time: Instant::now(),
         faders: Vec::new(),
     };

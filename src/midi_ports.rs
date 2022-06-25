@@ -25,7 +25,7 @@ impl MidiPort {
             println!("");
             println!("!!  Couldn't find {} in available midi ports.  !!", config.midi_port);
             println!("    Available midi input ports are:");
-            for (_, p) in ports.iter().enumerate() {
+            for p in ports.iter() {
                 println!("    - {}", midi_in.port_name(&p)?);
             }
             println!("");

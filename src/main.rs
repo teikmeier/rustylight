@@ -49,6 +49,10 @@ fn main() -> Result<(), ::std::io::Error> {
 fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp_socket: UdpSocket) {
     let frame_duration = 1000/config.fps;
     let mut sleep_duration;
+    println!("");
+    show.print_content();
+    println!("");
+    println!("");
     println!("Here we go!");
     println!("");
     loop {

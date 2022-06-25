@@ -1,7 +1,7 @@
 use derive_more::Display;
 use serialport::Error as SerialError;
 use std::error::Error as StdError;
-use serialport::{ new, SerialPort };
+use serialport::{ new, available_ports, SerialPort, SerialPortType };
 use core::time::Duration;
 use std::cmp::{ min };
 use crate::configuration::BaseConfig;
@@ -150,7 +150,7 @@ impl Dmxis {
 pub fn open_dmxis_port(config: &BaseConfig) -> Result<Dmxis, Box<dyn StdError>> {
     let serial_port = if cfg!(windows) {
         &config.dmx_serial_port_win
-    } else if cfg!(macos) {
+    } else if cfg!(target_os = "macos") {
         &config.dmx_serial_port_osx
     } else {
         &config.dmx_serial_port_other
@@ -163,6 +163,16 @@ pub fn open_dmxis_port(config: &BaseConfig) -> Result<Dmxis, Box<dyn StdError>> 
     }
     println!("");
     println!("!!  No dmx port to open, check your config and that the dmx interface is properly connected.  !!");
+    if let Ok(ports) = available_ports() {
+        println!("    Available serial ports are:");
+        for p in ports.iter() {
+            if let SerialPortType::UsbPort(usb_port_info) = &p.port_type {
+                println!("    - {}: {:?}", p.port_name, usb_port_info.product);
+            }
+        }
+    } else {
+        println!("    No ports found!");
+    }
     println!("");
     return Err("".into());
 }
