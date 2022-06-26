@@ -47,8 +47,10 @@ impl MidiPort {
 fn send_udp_message(socket: &UdpSocket, midi_message: &[u8], midi_channel: u8) -> std::io::Result<()> {
     let programm_change: u8 = 191 + midi_channel; // midi programm changes have a status range from 192-207
     let control_change: u8 = 175 + midi_channel; // midi control changes have a status range from 176-191
-    const BANK_SELECT: u8 = 0; // bank select sounded most apropriate to map song or scene selection to
+    const BANK_SELECT: u8 = 0; // bank select sounded most apropriate to map song selection to
     const ALL_NOTES_OFF: u8 = 123;
+    const TEMPO_CONTROL_1: u8 = 12;
+    const TEMPO_CONTROL_2: u8 = 13;
 
     let parsed_vec_message = midi_message.to_vec();
     let status = parsed_vec_message[0];
@@ -57,9 +59,13 @@ fn send_udp_message(socket: &UdpSocket, midi_message: &[u8], midi_channel: u8) -
     let mut string_message = String::from("");
 
     if status == programm_change {
-        string_message = format!("scene{}", data1);
+        string_message = format!("scene_{}", data1);
     } else if status == control_change && data1 == BANK_SELECT && data2.is_some() {
-        string_message = format!("song{}", data2.unwrap());
+        string_message = format!("song_{}", data2.unwrap());
+    } else if status == control_change && data1 == TEMPO_CONTROL_1 && data2.is_some() {
+        string_message = format!("tempo1_{}", data2.unwrap());
+    } else if status == control_change && data1 == TEMPO_CONTROL_2 && data2.is_some() {
+        string_message = format!("tempo2_{}", data2.unwrap());
     } else if status == control_change && data1 == ALL_NOTES_OFF {
         string_message = format!("off");
     }

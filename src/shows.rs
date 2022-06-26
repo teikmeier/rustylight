@@ -13,6 +13,7 @@ pub struct ShowUpdate {
     pub song: Option<usize>,
     pub scene: Option<usize>,
     pub tempo: Option<u8>,
+    pub off: Option<bool>,
 }
 
 pub struct Show {
@@ -20,6 +21,7 @@ pub struct Show {
     songs: Vec<Song>,
     selected_song: usize,
     selected_tempo: u8,
+    off: bool,
 }
 
 impl Show {
@@ -29,13 +31,21 @@ impl Show {
                 if self.songs.len() > next_song {
                     self.selected_song = next_song;
                     self.songs[self.selected_song].reset();
+                    // self.print_selected_song();
                 }
             }
         }
         if let Some(next_tempo) = patch.tempo {
             if self.selected_tempo != next_tempo {
                 self.selected_tempo = next_tempo;
+                // println!("New tempo: {}", self.selected_tempo);
             }
+        }
+        if let Some(_) = patch.off {
+            self.off = true;
+        }
+        if (patch.song.is_some() || patch.scene.is_some()) && patch.off.is_none() {
+            self.off = false;
         }
         if self.songs.len() > self.selected_song {
             self.songs[self.selected_song].update(patch);
@@ -49,7 +59,9 @@ impl Show {
     }
 
     pub fn get_dmx_data(&self) -> [u8; 255] {
-        if self.songs.len() > self.selected_song {
+        if self.off {
+            [0; 255]
+        } else if self.songs.len() > self.selected_song {
             self.songs[self.selected_song].get_dmx_data()
         } else {
             [0; 255]
@@ -62,6 +74,10 @@ impl Show {
             println!("");
             song.print_content(i);
         }
+    }
+
+    pub fn print_selected_song(&self) {
+        println!("Song: {}. {}", self.selected_song, self.songs[self.selected_song].name);
     }
 }
 
@@ -82,6 +98,7 @@ impl Song {
                 if self.scenes.len() > next_scene {
                     self.selected_scene = next_scene;
                     self.scenes[self.selected_scene].reset();
+                    // self.print_selected_scene();
                 }
             }
         }
@@ -109,9 +126,9 @@ impl Song {
         }
     }
 
-    // pub fn print_selected_scene(&self) {
-    //     println!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
-    // }
+    pub fn print_selected_scene(&self) {
+        println!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
+    }
 }
 
 pub struct Scene {
@@ -171,6 +188,7 @@ fn load_show_from_path(path: &Path) -> Show {
         songs: Vec::new(),
         selected_song: 0,
         selected_tempo: 120,
+        off: false,
     };
     let paths = get_ordered_paths_as_iter(path);
     for subpath in paths {
@@ -266,6 +284,7 @@ fn load_default_show() -> Show {
         songs: vec![first_song, second_song],
         selected_song: 0,
         selected_tempo: 120,
+        off: false,
     };
     return default_show;
 }

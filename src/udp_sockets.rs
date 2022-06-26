@@ -20,29 +20,40 @@ pub fn read_all_from_udp_socket(udp_socket: &UdpSocket) -> ShowUpdate {
         song: None,
         scene: None,
         tempo: None,
+        off: None,
     };
+
+    let mut tempo1 = None;
+    let mut tempo2 = None;
 
     loop {
         match udp_socket.recv(&mut buf) {
             Ok(received) => {
                 let input_string = str::from_utf8(&buf[..received]).unwrap();
-                if input_string.contains("song") {
-                    update.song = Some(input_string.replace("song", "").parse::<usize>().unwrap());
+                if input_string.contains("song_") {
+                    update.song = Some(input_string.replace("song_", "").parse::<usize>().unwrap());
                 }
-                if input_string.contains("scene") {
-                    update.scene = Some(input_string.replace("scene", "").parse::<usize>().unwrap());
+                if input_string.contains("scene_") {
+                    update.scene = Some(input_string.replace("scene_", "").parse::<usize>().unwrap());
                 }
-                if input_string.contains("tempo") {
-                    update.tempo = Some(input_string.replace("tempo", "").parse::<u8>().unwrap());
+                if input_string.contains("tempo1_") {
+                    tempo1 = Some(input_string.replace("tempo1_", "").parse::<u8>().unwrap());
+                }
+                if input_string.contains("tempo2_") {
+                    tempo2 = Some(input_string.replace("tempo2_", "").parse::<u8>().unwrap());
                 }
                 if input_string.eq("off") {
-                    println!("Received an ALL_NOTES_OFF event, not sure what to do yet.");
+                    println!("Received an ALL_NOTES_OFF event.");
+                    update.off = Some(true);
                 }
             },
             Err(_) => {
                 break;
             }
         }
+    }
+    if tempo1.is_some() && tempo2.is_some() {
+        update.tempo = Some(tempo1.unwrap() + tempo2.unwrap());
     }
     update
 }
