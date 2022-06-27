@@ -54,7 +54,10 @@ impl fmt::Display for Shape {
 
 impl Fader {
     pub fn get_value(&self) -> u8 {
-        self.current_value
+        match &self.fader_type {
+            FaderType::Default => self.current_value,
+            _ => 0
+        }
     }
 
     pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant) {
@@ -202,7 +205,7 @@ fn calculate_movement(movement: &Movement, beats_per_minute: u8, start_time: Ins
         beat_duration_ms * 4.0
     };
     let delay_ms = if let Some(percentage) = movement.delay_percentage {
-        beat_duration_ms * (percentage as f64 / 100.0)
+        movement_duration_ms * (percentage as f64 / 100.0)
     } else if let Some(ms) = movement.delay_ms {
         ms as f64
     } else {

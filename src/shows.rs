@@ -31,14 +31,14 @@ impl Show {
                 if self.songs.len() > next_song {
                     self.selected_song = next_song;
                     self.songs[self.selected_song].reset();
-                    // self.print_selected_song();
+                    self.print_selected_song();
                 }
             }
         }
         if let Some(next_tempo) = patch.tempo {
             if self.selected_tempo != next_tempo {
                 self.selected_tempo = next_tempo;
-                // println!("New tempo: {}", self.selected_tempo);
+                println!("New tempo: {}", self.selected_tempo);
             }
         }
         if let Some(_) = patch.off {
@@ -98,7 +98,7 @@ impl Song {
                 if self.scenes.len() > next_scene {
                     self.selected_scene = next_scene;
                     self.scenes[self.selected_scene].reset();
-                    // self.print_selected_scene();
+                    self.print_selected_scene();
                 }
             }
         }
