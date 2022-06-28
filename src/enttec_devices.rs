@@ -4,6 +4,7 @@ use std::error::Error as StdError;
 use serialport::{ new, available_ports, SerialPort, SerialPortType };
 use core::time::Duration;
 use std::cmp::{ min };
+use log::{info, debug, error};
 use crate::configuration::BaseConfig;
 
 const SET_PARAMETERS_COMMAND: u8 = 4;
@@ -121,7 +122,7 @@ impl Dmxis {
             0..=MIN_FRAME_SIZE => MIN_FRAME_SIZE,
             MIN_FRAME_SIZE..=MAX_FRAME_SIZE => input_size,
             _ => {
-                println!("Frame data too large, cutting off excess data");
+                debug!("Frame data too large, cutting off excess data");
                 MAX_FRAME_SIZE
             }
         };
@@ -131,7 +132,7 @@ impl Dmxis {
         let written = self.write_packet(SEND_PACKET_COMMAND, &padded_frame, true);
         match written {
             Ok(()) => (),
-            Err(error) => println!("Frame was not successfully written to DMXIS: {:?}", error)
+            Err(error) => error!("Frame was not successfully written to DMXIS: {:?}", error)
         }
     }
 
@@ -158,21 +159,21 @@ pub fn open_dmxis_port(config: &BaseConfig) -> Result<Dmxis, Box<dyn StdError>> 
     let mut dmxis = Dmxis::new(serial_port);
     let opened = dmxis.open();
     if opened.is_ok() {
-        println!("Opened DMX serial port:  {}", serial_port);
+        info!("Opened DMX serial port:  {}", serial_port);
         return Ok(dmxis);
     }
-    println!("");
-    println!("!!  No dmx port to open, check your config and that the dmx interface is properly connected.  !!");
+    error!("");
+    error!("!!  No dmx port to open, check your config and that the dmx interface is properly connected.  !!");
     if let Ok(ports) = available_ports() {
-        println!("    Available serial ports are:");
+        error!("    Available serial ports are:");
         for p in ports.iter() {
             if let SerialPortType::UsbPort(usb_port_info) = &p.port_type {
-                println!("    - {}: {:?}", p.port_name, usb_port_info.product);
+                error!("    - {}: {:?}", p.port_name, usb_port_info.product);
             }
         }
     } else {
-        println!("    No ports found!");
+        error!("    No ports found!");
     }
-    println!("");
+    error!("");
     return Err("".into());
 }

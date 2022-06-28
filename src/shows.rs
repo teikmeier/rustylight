@@ -8,6 +8,7 @@ use std::fs::DirEntry;
 use std::fs::File;
 use serde_yaml;
 use serde_yaml::Mapping;
+use log::{info, debug, error};
 
 pub struct ShowUpdate {
     pub song: Option<usize>,
@@ -30,15 +31,15 @@ impl Show {
             if self.selected_song != next_song {
                 if self.songs.len() > next_song {
                     self.selected_song = next_song;
-                    self.songs[self.selected_song].reset();
                     self.print_selected_song();
+                    self.songs[self.selected_song].reset();
                 }
             }
         }
         if let Some(next_tempo) = patch.tempo {
             if self.selected_tempo != next_tempo {
                 self.selected_tempo = next_tempo;
-                println!("New tempo: {}", self.selected_tempo);
+                debug!("Tempo: {}", self.selected_tempo);
             }
         }
         if let Some(_) = patch.off {
@@ -69,15 +70,17 @@ impl Show {
     }
 
     pub fn print_content(&self) {
-        println!("{}", self.name);
+        debug!("");
+        debug!("{}", self.name);
         for (i, song) in self.songs.iter().enumerate() {
-            println!("");
             song.print_content(i);
+            debug!("");
         }
+        debug!("");
     }
 
     pub fn print_selected_song(&self) {
-        println!("Song: {}. {}", self.selected_song, self.songs[self.selected_song].name);
+        debug!("Song: {}. {}", self.selected_song, self.songs[self.selected_song].name);
     }
 }
 
@@ -90,6 +93,7 @@ pub struct Song {
 impl Song {
     pub fn reset(&mut self) {
         self.selected_scene = 0;
+        self.print_selected_scene()
     }
 
     pub fn update(&mut self, patch: ShowUpdate) -> usize {
@@ -120,14 +124,14 @@ impl Song {
     }
     
     pub fn print_content(&self, index: usize) {
-        println!("  {} {}", index, self.name);
+        debug!("  {} {}", index, self.name);
         for (i, scene) in self.scenes.iter().enumerate() {
             scene.print_content(i);
         }
     }
 
     pub fn print_selected_scene(&self) {
-        println!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
+        debug!("Scene: {}. {}", self.selected_scene, self.scenes[self.selected_scene].name);
     }
 }
 
@@ -157,7 +161,7 @@ impl Scene {
     }
     
     pub fn print_content(&self, index: usize) {
-        println!("    {} {}", index, self.name);
+        debug!("    {} {}", index, self.name);
     }
 }
 
@@ -169,8 +173,8 @@ pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
         if show_path.is_dir() {
             show_slot = Some(load_show_from_path(show_path));
         } else {
-            println!("!!  Provided show path is not a directory: '{}'  !!", &config.show_path);
-            println!("");
+            error!("!!  Provided show path is not a directory: '{}'  !!", &config.show_path);
+            error!("");
         }
     }
 
@@ -178,7 +182,7 @@ pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
         show_slot = Some(load_default_show());
     }
     let selected_show = show_slot.unwrap();
-    println!("Selected show:           {}", &selected_show.name);
+    info!("Selected show:           {}", &selected_show.name);
     Ok(selected_show)
 }
 

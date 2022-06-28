@@ -3,6 +3,7 @@ use std::net::UdpSocket;
 use std::error::Error;
 use std::str;
 use crate::shows::ShowUpdate;
+use log::{trace, debug};
 
 const READ_FROM_ADDRESS: &str = "127.0.0.1:32567";
 const WRITE_TO_ADDRESS: &str = "127.0.0.1:32568";
@@ -43,7 +44,7 @@ pub fn read_all_from_udp_socket(udp_socket: &UdpSocket) -> ShowUpdate {
                     tempo2 = Some(input_string.replace("tempo2_", "").parse::<u8>().unwrap());
                 }
                 if input_string.eq("off") {
-                    println!("Received an ALL_NOTES_OFF event.");
+                    debug!("Received an ALL_NOTES_OFF event.");
                     update.off = Some(true);
                 }
             },
@@ -54,6 +55,9 @@ pub fn read_all_from_udp_socket(udp_socket: &UdpSocket) -> ShowUpdate {
     }
     if tempo1.is_some() && tempo2.is_some() {
         update.tempo = Some(tempo1.unwrap() + tempo2.unwrap());
+    }
+    if update.song.is_some() || update.scene.is_some() || tempo1.is_some() || tempo2.is_some() || update.tempo.is_some() || update.off.is_some() {
+        trace!("Update: so {:?} - sc {:?} - t1 {:?} - t2 {:?} - t {:?} - off {:?}", update.song, update.scene, tempo1, tempo2, update.tempo, update.off);
     }
     update
 }

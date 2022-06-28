@@ -2,6 +2,7 @@ use midir::{MidiInput, MidiInputConnection};
 use crate::configuration::BaseConfig;
 use std::error::Error;
 use std::net::UdpSocket;
+use log::{info, error};
 
 pub struct MidiPort {
     midi_channel: u8,
@@ -22,17 +23,17 @@ impl MidiPort {
         let port_result = ports.iter().find(|p| midi_in.port_name(p).unwrap().contains(&config.midi_port));
         let port;
         if port_result.is_none() {
-            println!("");
-            println!("!!  Couldn't find {} in available midi ports.  !!", config.midi_port);
-            println!("    Available midi input ports are:");
+            error!("");
+            error!("!!  Couldn't find {} in available midi ports.  !!", config.midi_port);
+            error!("    Available midi input ports are:");
             for p in ports.iter() {
-                println!("    - {}", midi_in.port_name(&p)?);
+                error!("    - {}", midi_in.port_name(&p)?);
             }
-            println!("");
+            error!("");
             return Err("couldn't find wanted midi port in available ports".into());
         }
         port = port_result.unwrap();
-        println!("Connected midi port:     {}", midi_in.port_name(port)?);
+        info!("Connected midi port:     {}", midi_in.port_name(port)?);
         let socket = UdpSocket::bind("127.0.0.1:32567").expect("couldn't bind to address");
         socket.connect("127.0.0.1:32568").expect("connect function failed");
         let midi_channel = self.midi_channel;

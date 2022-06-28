@@ -176,18 +176,6 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
     if movement.delay_percentage.is_none() && movement.delay_ms.is_none() {
         movement.delay_percentage = Some(0);
     }
-    // println!("");
-    // println!("Movement");
-    // println!("  Shape: {}", movement.shape.to_string());
-    // println!("  Delay: {:?}", movement.delay_percentage.unwrap());
-    // println!("  Max: {}", movement.max);
-    // println!("  Min: {}", movement.min);
-    // println!("  Curve max: {}", movement.curve_max.unwrap());
-    // println!("  Curve min: {}", movement.curve_min.unwrap());
-    // println!("  Reverse: {:?}", movement.reverse);
-    // println!("  Repetitions: {:?}", movement.repetition);
-    // println!("  Duration: {:?}", movement.duration_percentage.unwrap());
-    // println!("");
     movement
 }
 

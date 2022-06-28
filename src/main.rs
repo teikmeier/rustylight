@@ -13,6 +13,7 @@ use core::time::Duration;
 use std::thread::sleep;
 use std::time::Instant;
 use std::net::UdpSocket;
+use log::{info, warn, error};
 
 fn main() -> Result<(), ::std::io::Error> {
 
@@ -22,7 +23,6 @@ fn main() -> Result<(), ::std::io::Error> {
 
     let config_result = configuration::load();
     if config_result.is_err() {
-        println!("Couldn't load config. Make sure your config file contains all required fields.");
         return Ok(());
     }
 
@@ -32,12 +32,12 @@ fn main() -> Result<(), ::std::io::Error> {
     let mut midi_port = midi_ports::new(&config);
     let _ = midi_port.connect(&config);
     let udp_socket = udp_sockets::open_udp_socket();
-    println!("");
+    info!("");
 
     if show.is_err() || dmx_port.is_err() || !midi_port.is_open() || udp_socket.is_err() {
-        println!("Destroying the application. See logs for further details.");
-        println!("Bye!");
-        println!("");
+        error!("Destroying the application. See logs for further details.");
+        error!("Bye!");
+        error!("");
         return Ok(());
     }
 
@@ -49,12 +49,10 @@ fn main() -> Result<(), ::std::io::Error> {
 fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp_socket: UdpSocket) {
     let frame_duration = 1000/config.fps;
     let mut sleep_duration;
-    println!("");
     show.print_content();
-    println!("");
-    println!("");
-    println!("Here we go!");
-    println!("");
+    info!("");
+    info!("Here we go!");
+    info!("");
     loop {
         let loop_start_time = Instant::now();
 
@@ -74,7 +72,7 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp
         if elapsed < frame_duration {
             sleep_duration = frame_duration - elapsed;
         } else {
-            println!("Dropped {} frame(s).", (elapsed - (elapsed % frame_duration)) / frame_duration);
+            warn!("Dropped {} frame(s).", (elapsed - (elapsed % frame_duration)) / frame_duration);
             sleep_duration = elapsed % frame_duration;
         }
         sleep(Duration::from_millis(sleep_duration));
