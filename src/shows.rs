@@ -1,13 +1,10 @@
 use crate::configuration::BaseConfig;
-use crate::faders;
-use crate::faders::Fader;
+use crate::faders::{Fader, fader_from_mapping};
 use std::error::Error;
 use std::time::Instant;
 use std::path::Path;
-use std::fs::DirEntry;
-use std::fs::File;
-use serde_yaml;
-use serde_yaml::Mapping;
+use std::fs::{DirEntry, File};
+use serde_yaml::{from_reader, Mapping};
 use log::{info, debug, error};
 
 pub struct ShowUpdate {
@@ -197,13 +194,15 @@ fn load_show_from_path(path: &Path) -> Show {
     let paths = get_ordered_paths_as_iter(path);
     for subpath in paths {
         if subpath.path().is_dir() {
-            show.songs.push(load_song_from_path(&subpath.path()));
+            if let Some(song) = load_song_from_path(&subpath.path()) {
+                show.songs.push(song);
+            }
         }
     }
     show
 }
 
-fn load_song_from_path(path: &Path) -> Song {
+fn load_song_from_path(path: &Path) -> Option<Song> {
     let mut song = Song {
         name: String::from(path.file_name().unwrap().to_str().unwrap()),
         scenes: Vec::new(),
@@ -212,16 +211,22 @@ fn load_song_from_path(path: &Path) -> Song {
     let paths = get_ordered_paths_as_iter(path);
     for subpath in paths {
         if subpath.path().is_file() &&
-            subpath.path().extension().unwrap().eq("yml") {
+            subpath.path().extension().is_some() &&
+            subpath.path().extension().unwrap().eq("yml") &&
+            !subpath.file_name().to_str().unwrap().starts_with(".") {
             song.scenes.push(load_scene_from_path(&subpath.path()));
         }
     }
-    song
+    if song.scenes.len() > 0 {
+        Some(song)
+    } else {
+        None
+    }
 }
 
 fn load_scene_from_path(path: &Path) -> Scene {
     let scene_file = File::open(&path).unwrap();
-    let yaml_data: Mapping = serde_yaml::from_reader(scene_file).unwrap();
+    let yaml_data: Mapping = from_reader(scene_file).unwrap();
     let mut scene = Scene {
         name: String::from(path.file_stem().unwrap().to_str().unwrap()),
         start_time: Instant::now(),
@@ -233,7 +238,7 @@ fn load_scene_from_path(path: &Path) -> Scene {
                 scene.name = value.as_str().unwrap().to_string();
         } else if key.is_string() && key.eq("faders") && value.is_mapping() {
             for (channel, properties) in value.as_mapping().unwrap().iter() {
-                if let Some(fader) = faders::fader_from_mapping(channel, properties) {
+                if let Some(fader) = fader_from_mapping(channel, properties) {
                     scene.faders.push(fader);
                 }
             }
@@ -244,11 +249,13 @@ fn load_scene_from_path(path: &Path) -> Scene {
 }
 
 fn get_ordered_paths_as_iter(path: &Path) -> Vec<DirEntry> {
-    let mut paths: Vec<_> = path.read_dir()
+    let mut paths: Vec<DirEntry> = path.read_dir()
                     .expect("read_dir call failed")
                     .filter_map(|r| r.ok())
+                    .filter(|dir| !dir.file_name().to_str().unwrap().starts_with("."))
                     .collect();
-    paths.sort_by_key(|dir| dir.path());
+    paths
+        .sort_by_key(|dir| dir.path());
     return paths;
 }
 
