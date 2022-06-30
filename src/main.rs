@@ -3,16 +3,15 @@ mod enttec_devices;
 mod faders;
 mod midi_ports;
 mod shows;
-mod udp_sockets;
 
 use configuration::BaseConfig;
 use enttec_devices::Dmxis;
 use shows::Show;
+use midi_ports::MidiPort;
 
 use core::time::Duration;
 use std::thread::sleep;
 use std::time::Instant;
-use std::net::UdpSocket;
 use log::{info, warn, error};
 
 fn main() -> Result<(), ::std::io::Error> {
@@ -29,24 +28,22 @@ fn main() -> Result<(), ::std::io::Error> {
     let config = config_result.unwrap();
     let show = shows::load_show(&config);
     let dmx_port = enttec_devices::open_dmxis_port(&config);
-    let mut midi_port = midi_ports::new(&config);
-    let _ = midi_port.connect(&config);
-    let udp_socket = udp_sockets::open_udp_socket();
+    let midi_port = midi_ports::new(&config);
     info!("");
 
-    if show.is_err() || dmx_port.is_err() || !midi_port.is_open() || udp_socket.is_err() {
+    if show.is_err() || dmx_port.is_err() || !midi_port.is_some() {
         error!("Destroying the application. See logs for further details.");
         error!("Bye!");
         error!("");
         return Ok(());
     }
 
-    start_game_loop(&config, show.unwrap(), dmx_port.unwrap(), udp_socket.unwrap());
+    start_game_loop(&config, show.unwrap(), dmx_port.unwrap(), midi_port.unwrap());
 
     return Ok(());
 }
 
-fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp_socket: UdpSocket) {
+fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, midi_port: MidiPort) {
     let frame_duration = 1000/config.fps;
     let mut sleep_duration;
     show.print_content();
@@ -57,10 +54,10 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, udp
         let loop_start_time = Instant::now();
 
         // Read all inputs
-        let udp_message = udp_sockets::read_all_from_udp_socket(&udp_socket);
+        let update = midi_port.get_update();
 
         // Update internal state
-        show.update(udp_message);
+        show.update(update);
         show.update_state();
 
         // Render internal state to DMX

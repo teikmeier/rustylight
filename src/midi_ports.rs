@@ -1,87 +1,130 @@
 use midir::{MidiInput, MidiInputConnection};
 use crate::configuration::BaseConfig;
+use crate::shows::ShowUpdate;
 use std::error::Error;
-use std::net::UdpSocket;
+use crossbeam_channel::{unbounded, Receiver};
 use log::{info, error};
+
+pub struct MidiMessage {
+    status: u8,
+    data1: u8,
+    data2: Option<u8>,
+}
 
 pub struct MidiPort {
     midi_channel: u8,
+    midi_port: String,
     connection: Option<MidiInputConnection<()>>,
+    receiver: Option<Receiver<MidiMessage>>
 }
 
-impl MidiPort {
-    pub fn is_open (&mut self) -> bool {
-        self.connection.is_some()
-    }
+const PROGRAMM_CHANGE: u8 = 191; // programm changes have a status range from 192-207
+const CONTROL_CHANGE: u8 = 175; // control changes have a status range from 176-191
+// const NOTE_ON: u8 = 144; // note on events have a status range from 144-159
+// const NOTE_OFF: u8 = 128; // note off events have a status range from 128-143
+const SONG_SELECT: u8 = 0;
+const ALL_NOTES_OFF: u8 = 123;
+const TEMPO_CONTROL_1: u8 = 12;
+const TEMPO_CONTROL_2: u8 = 13;
 
-    pub fn connect (&mut self, config: &BaseConfig) -> Result<(), Box<dyn Error>> {
-        if self.connection.is_some() {
-            return Ok(());
-        }
+impl MidiPort {
+    pub fn connect (&mut self) -> Result<(), Box<dyn Error>> {
         let midi_in = MidiInput::new("midir reading input")?;
         let ports = midi_in.ports();
-        let port_result = ports.iter().find(|p| midi_in.port_name(p).unwrap().contains(&config.midi_port));
+        let port_result = ports.iter().find(|p| midi_in.port_name(p).unwrap().contains(&self.midi_port));
         let port;
+
         if port_result.is_none() {
             error!("");
-            error!("!!  Couldn't find {} in available midi ports.  !!", config.midi_port);
+            error!("!!  Couldn't find {} in available midi ports.  !!", self.midi_port);
             error!("    Available midi input ports are:");
             for p in ports.iter() {
                 error!("    - {}", midi_in.port_name(&p)?);
             }
             error!("");
-            return Err("couldn't find wanted midi port in available ports".into());
+            return Err("".into());
         }
+
         port = port_result.unwrap();
         info!("Connected midi port:     {}", midi_in.port_name(port)?);
-        let socket = UdpSocket::bind("127.0.0.1:32567").expect("couldn't bind to address");
-        socket.connect("127.0.0.1:32568").expect("connect function failed");
-        let midi_channel = self.midi_channel;
+        let (sender, receiver) = unbounded();
+        self.receiver = Some(receiver);
+
         let connection = midi_in.connect(&port, "midir-read-input", move |_stamp, message, _| {
-            let _ = send_udp_message(&socket, message, midi_channel);
+            let parsed_message = parse_midi_message(message);
+            if let Some(payload) = parsed_message {
+                match sender.try_send(payload) {
+                    Ok(()) => (),
+                    Err(err) => error!("{}", err),
+                };
+            }
         }, ());
         self.connection = connection.ok();
+
         return Ok(());
     }
+
+    pub fn get_update(&self) -> ShowUpdate {
+        let mut update = ShowUpdate {
+            song: None,
+            scene: None,
+            tempo: None,
+            off: None,
+        };
+        if let Some(receiver) = &self.receiver {
+            let mut tempo1 = None;
+            let mut tempo2 = None;
+            loop {
+                match receiver.try_recv() {
+                    Ok(message) => {
+                        if message.status == PROGRAMM_CHANGE + &self.midi_channel {
+                            update.scene = Some(message.data1 as usize);
+                        } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == SONG_SELECT && message.data2.is_some() {
+                            update.song = Some(message.data2.unwrap() as usize);
+                        } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == TEMPO_CONTROL_1 && message.data2.is_some() {
+                            tempo1 = Some(message.data2.unwrap());
+                        } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == TEMPO_CONTROL_2 && message.data2.is_some() {
+                            tempo2 = Some(message.data2.unwrap());
+                        } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == ALL_NOTES_OFF {
+                            update.off = Some(true);
+                        }
+                    },
+                    Err(_) => break,
+                }
+            }
+            if tempo1.is_some() && tempo2.is_some() {
+                update.tempo = Some(tempo1.unwrap() + tempo2.unwrap());
+            }
+        }
+        update
+    }
 }
 
-fn send_udp_message(socket: &UdpSocket, midi_message: &[u8], midi_channel: u8) -> std::io::Result<()> {
-    let programm_change: u8 = 191 + midi_channel; // midi programm changes have a status range from 192-207
-    let control_change: u8 = 175 + midi_channel; // midi control changes have a status range from 176-191
-    const BANK_SELECT: u8 = 0; // bank select sounded most apropriate to map song selection to
-    const ALL_NOTES_OFF: u8 = 123;
-    const TEMPO_CONTROL_1: u8 = 12;
-    const TEMPO_CONTROL_2: u8 = 13;
-
-    let parsed_vec_message = midi_message.to_vec();
-    let status = parsed_vec_message[0];
-    let data1 = parsed_vec_message[1];
-    let data2 = parsed_vec_message.get(2);
-    let mut string_message = String::from("");
-
-    if status == programm_change {
-        string_message = format!("scene_{}", data1);
-    } else if status == control_change && data1 == BANK_SELECT && data2.is_some() {
-        string_message = format!("song_{}", data2.unwrap());
-    } else if status == control_change && data1 == TEMPO_CONTROL_1 && data2.is_some() {
-        string_message = format!("tempo1_{}", data2.unwrap());
-    } else if status == control_change && data1 == TEMPO_CONTROL_2 && data2.is_some() {
-        string_message = format!("tempo2_{}", data2.unwrap());
-    } else if status == control_change && data1 == ALL_NOTES_OFF {
-        string_message = format!("off");
-    }
-
-    if !string_message.is_empty() {
-        socket
-        .send(string_message.as_bytes())
-        .expect("Error on send");
-    }
-    Ok(())
-}
-
-pub fn new (config: &BaseConfig) -> MidiPort {
-    MidiPort {
+pub fn new (config: &BaseConfig) -> Option<MidiPort> {
+    let mut port = MidiPort {
         midi_channel: config.midi_channel,
+        midi_port: config.midi_port.clone(),
         connection: None,
+        receiver: None,
+    };
+    if port.connect().is_ok() {
+        return Some(port);
+    };
+    None
+}
+
+fn parse_midi_message(midi_message: &[u8]) -> Option<MidiMessage> {
+    let parsed_midi_message = midi_message.to_vec();
+    if parsed_midi_message.len() >=2 {
+        let mut result = MidiMessage {
+            status: parsed_midi_message[0],
+            data1: parsed_midi_message[1],
+            data2: None,
+        };
+        if parsed_midi_message.len() >= 3 {
+            result.data2 = Some(parsed_midi_message[2])
+        }
+        return Some(result);
     }
+    None
 }
