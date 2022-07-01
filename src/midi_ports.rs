@@ -3,7 +3,7 @@ use crate::configuration::BaseConfig;
 use crate::shows::ShowUpdate;
 use std::error::Error;
 use crossbeam_channel::{unbounded, Receiver};
-use log::{info, error};
+use log::{info, trace, error};
 
 pub struct MidiMessage {
     status: u8,
@@ -18,10 +18,10 @@ pub struct MidiPort {
     receiver: Option<Receiver<MidiMessage>>
 }
 
-const PROGRAMM_CHANGE: u8 = 191; // programm changes have a status range from 192-207
-const CONTROL_CHANGE: u8 = 175; // control changes have a status range from 176-191
-// const NOTE_ON: u8 = 144; // note on events have a status range from 144-159
-// const NOTE_OFF: u8 = 128; // note off events have a status range from 128-143
+const PROGRAMM_CHANGE: u8 = 192; // programm changes have a status range from 192-207
+const CONTROL_CHANGE: u8 = 176; // control changes have a status range from 176-191
+const NOTE_ON: u8 = 144; // note on events have a status range from 144-159
+const NOTE_OFF: u8 = 128; // note off events have a status range from 128-143
 const SONG_SELECT: u8 = 0;
 const ALL_NOTES_OFF: u8 = 123;
 const TEMPO_CONTROL_1: u8 = 12;
@@ -53,6 +53,7 @@ impl MidiPort {
         let connection = midi_in.connect(&port, "midir-read-input", move |_stamp, message, _| {
             let parsed_message = parse_midi_message(message);
             if let Some(payload) = parsed_message {
+                trace!("MIDI Message: s {} - d1 {} - d2 {:?}", payload.status, payload.data1, payload.data2);
                 match sender.try_send(payload) {
                     Ok(()) => (),
                     Err(err) => error!("{}", err),
@@ -64,12 +65,13 @@ impl MidiPort {
         return Ok(());
     }
 
-    pub fn get_update(&self) -> ShowUpdate {
+    pub fn read_all(&self) -> ShowUpdate {
         let mut update = ShowUpdate {
             song: None,
             scene: None,
             tempo: None,
             off: None,
+            notes: [None; 128],
         };
         if let Some(receiver) = &self.receiver {
             let mut tempo1 = None;
@@ -82,11 +84,15 @@ impl MidiPort {
                         } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == SONG_SELECT && message.data2.is_some() {
                             update.song = Some(message.data2.unwrap() as usize);
                         } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == TEMPO_CONTROL_1 && message.data2.is_some() {
-                            tempo1 = Some(message.data2.unwrap());
+                            tempo1 = message.data2;
                         } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == TEMPO_CONTROL_2 && message.data2.is_some() {
-                            tempo2 = Some(message.data2.unwrap());
+                            tempo2 = message.data2;
                         } else if message.status == CONTROL_CHANGE + &self.midi_channel && message.data1 == ALL_NOTES_OFF {
                             update.off = Some(true);
+                        } else if message.status == NOTE_ON + &self.midi_channel && message.data2.is_some() {
+                            update.notes[message.data1 as usize] = message.data2;
+                        } else if message.status == NOTE_OFF + &self.midi_channel {
+                            update.notes[message.data1 as usize] = Some(0);
                         }
                     },
                     Err(_) => break,
@@ -102,7 +108,7 @@ impl MidiPort {
 
 pub fn new (config: &BaseConfig) -> Option<MidiPort> {
     let mut port = MidiPort {
-        midi_channel: config.midi_channel,
+        midi_channel: config.midi_channel - 1, // to ease the calculation of midi messages later on
         midi_port: config.midi_port.clone(),
         connection: None,
         receiver: None,

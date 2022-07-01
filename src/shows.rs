@@ -1,17 +1,19 @@
 use crate::configuration::BaseConfig;
 use crate::faders::{Fader, fader_from_mapping};
-use std::error::Error;
 use std::time::Instant;
 use std::path::Path;
 use std::fs::{DirEntry, File};
 use serde_yaml::{from_reader, Mapping};
-use log::{info, debug, error};
+use log::{debug, error};
+
+const DEFAULT_TEMPO: u8 = 120;
 
 pub struct ShowUpdate {
     pub song: Option<usize>,
     pub scene: Option<usize>,
     pub tempo: Option<u8>,
     pub off: Option<bool>,
+    pub notes: [Option<u8>; 128],
 }
 
 pub struct Show {
@@ -23,7 +25,7 @@ pub struct Show {
 }
 
 impl Show {
-    pub fn update(&mut self, patch: ShowUpdate) {
+    pub fn update_state(&mut self, mut patch: ShowUpdate) {
         if let Some(next_song) = patch.song {
             if self.selected_song != next_song {
                 if self.songs.len() > next_song {
@@ -33,26 +35,24 @@ impl Show {
                 }
             }
         }
+
         if let Some(next_tempo) = patch.tempo {
             if self.selected_tempo != next_tempo {
                 self.selected_tempo = next_tempo;
                 debug!("Tempo: {}", self.selected_tempo);
             }
+        } else {
+            patch.tempo = Some(self.selected_tempo);
         }
+
         if let Some(_) = patch.off {
             self.off = true;
-        }
-        if (patch.song.is_some() || patch.scene.is_some()) && patch.off.is_none() {
+        } else if patch.song.is_some() || patch.scene.is_some() {
             self.off = false;
         }
-        if self.songs.len() > self.selected_song {
-            self.songs[self.selected_song].update(patch);
-        }
-    }
 
-    pub fn update_state(&mut self) {
         if self.songs.len() > self.selected_song {
-            self.songs[self.selected_song].update_state(self.selected_tempo);
+            self.songs[self.selected_song].update_state(patch);
         }
     }
 
@@ -93,7 +93,7 @@ impl Song {
         self.print_selected_scene()
     }
 
-    pub fn update(&mut self, patch: ShowUpdate) -> usize {
+    pub fn update_state(&mut self, patch: ShowUpdate) {
         if let Some(next_scene) = patch.scene {
             if self.selected_scene != next_scene {
                 if self.scenes.len() > next_scene {
@@ -103,12 +103,9 @@ impl Song {
                 }
             }
         }
-        self.selected_scene
-    }
 
-    pub fn update_state(&mut self, selected_tempo: u8) {
         if self.scenes.len() > self.selected_scene {
-            self.scenes[self.selected_scene].update_state(selected_tempo);
+            self.scenes[self.selected_scene].update_state(patch);
         }
     }
 
@@ -143,9 +140,10 @@ impl Scene {
         self.start_time = Instant::now();
     }
 
-    pub fn update_state(&mut self, selected_tempo: u8) {
+    pub fn update_state(&mut self, patch: ShowUpdate) {
+        let current_tempo = patch.tempo.unwrap_or(DEFAULT_TEMPO);
         for fader in &mut self.faders {
-            fader.update_state(selected_tempo, self.start_time);
+            fader.update_state(current_tempo, self.start_time);
         }
     }
 
@@ -162,44 +160,31 @@ impl Scene {
     }
 }
 
-pub fn load_show (config: &BaseConfig) -> Result<Show, Box<dyn Error>> {
-    let mut show_slot: Option<Show> = None;
-
-    if !config.show_path.eq("default_show") && !config.show_path.is_empty() {
+pub fn load_show(config: &BaseConfig) -> Option<Show> {
+    if !config.show_path.is_empty() {
         let show_path = Path::new(&config.show_path);
         if show_path.is_dir() {
-            show_slot = Some(load_show_from_path(show_path));
-        } else {
-            error!("!!  Provided show path is not a directory: '{}'  !!", &config.show_path);
-            error!("");
-        }
-    }
-
-    if show_slot.is_none() {
-        show_slot = Some(load_default_show());
-    }
-    let selected_show = show_slot.unwrap();
-    info!("Selected show:           {}", &selected_show.name);
-    Ok(selected_show)
-}
-
-fn load_show_from_path(path: &Path) -> Show {
-    let mut show = Show {
-        name: String::from(path.file_name().unwrap().to_str().unwrap()),
-        songs: Vec::new(),
-        selected_song: 0,
-        selected_tempo: 120,
-        off: false,
-    };
-    let paths = get_ordered_paths_as_iter(path);
-    for subpath in paths {
-        if subpath.path().is_dir() {
-            if let Some(song) = load_song_from_path(&subpath.path()) {
-                show.songs.push(song);
+            let mut show = Show {
+                name: String::from(show_path.file_name().unwrap().to_str().unwrap()),
+                songs: Vec::new(),
+                selected_song: 0,
+                selected_tempo: DEFAULT_TEMPO,
+                off: false,
+            };
+            let song_paths = get_ordered_subpaths_as_iter(show_path);
+            for song_path in song_paths {
+                if song_path.path().is_dir() {
+                    if let Some(song) = load_song_from_path(&song_path.path()) {
+                        show.songs.push(song);
+                    }
+                }
             }
+        return Some(show);
         }
     }
-    show
+    error!("!!  Provided show path is not a directory or empty: '{}'  !!", &config.show_path);
+    error!("");
+    None
 }
 
 fn load_song_from_path(path: &Path) -> Option<Song> {
@@ -208,7 +193,7 @@ fn load_song_from_path(path: &Path) -> Option<Song> {
         scenes: Vec::new(),
         selected_scene: 0,
     };
-    let paths = get_ordered_paths_as_iter(path);
+    let paths = get_ordered_subpaths_as_iter(path);
     for subpath in paths {
         if subpath.path().is_file() &&
             subpath.path().extension().is_some() &&
@@ -248,7 +233,7 @@ fn load_scene_from_path(path: &Path) -> Scene {
     scene
 }
 
-fn get_ordered_paths_as_iter(path: &Path) -> Vec<DirEntry> {
+fn get_ordered_subpaths_as_iter(path: &Path) -> Vec<DirEntry> {
     let mut paths: Vec<DirEntry> = path.read_dir()
                     .expect("read_dir call failed")
                     .filter_map(|r| r.ok())
@@ -257,45 +242,4 @@ fn get_ordered_paths_as_iter(path: &Path) -> Vec<DirEntry> {
     paths
         .sort_by_key(|dir| dir.path());
     return paths;
-}
-
-fn load_default_show() -> Show {
-    let lights_off_scene_1 : Scene = Scene {
-        name: String::from("Lights off"),
-        start_time: Instant::now(),
-        faders: Vec::new(),
-    };
-    let lights_off_scene_2 : Scene = Scene {
-        name: String::from("Lights off"),
-        start_time: Instant::now(),
-        faders: Vec::new(),
-    };
-    let lights_off_scene_3 : Scene = Scene {
-        name: String::from("Lights off"),
-        start_time: Instant::now(),
-        faders: Vec::new(),
-    };
-    let lights_off_scene_4 : Scene = Scene {
-        name: String::from("Lights off"),
-        start_time: Instant::now(),
-        faders: Vec::new(),
-    };
-    let first_song : Song = Song {
-        name: String::from("First song"),
-        scenes: vec![lights_off_scene_1, lights_off_scene_2],
-        selected_scene: 0,
-    };
-    let second_song : Song = Song {
-        name: String::from("Second song"),
-        scenes: vec![lights_off_scene_3, lights_off_scene_4],
-        selected_scene: 0,
-    };
-    let default_show : Show = Show {
-        name: String::from("Default show"),
-        songs: vec![first_song, second_song],
-        selected_song: 0,
-        selected_tempo: 120,
-        off: false,
-    };
-    return default_show;
 }

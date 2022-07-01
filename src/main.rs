@@ -31,7 +31,7 @@ fn main() -> Result<(), ::std::io::Error> {
     let midi_port = midi_ports::new(&config);
     info!("");
 
-    if show.is_err() || dmx_port.is_err() || !midi_port.is_some() {
+    if !show.is_some() || dmx_port.is_err() || !midi_port.is_some() {
         error!("Destroying the application. See logs for further details.");
         error!("Bye!");
         error!("");
@@ -54,11 +54,10 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, mid
         let loop_start_time = Instant::now();
 
         // Read all inputs
-        let update = midi_port.get_update();
+        let update = midi_port.read_all();
 
         // Update internal state
-        show.update(update);
-        show.update_state();
+        show.update_state(update);
 
         // Render internal state to DMX
         let dmx_data = show.get_dmx_data();
