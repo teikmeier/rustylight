@@ -209,8 +209,11 @@ fn calculate_movement(movement: &Movement, beats_per_minute: u8, start_time: Ins
             new_value = ((curve_max - curve_min) * new_unified_value) + curve_min;
         },
         Shape::Square => {
-            let new_unified_value = cos_function(current_position, movement.reverse);
-            if new_unified_value < 0.5 {
+            if current_position < 0.5 && movement.reverse {
+                new_value = curve_max;
+            } else if current_position >= 0.5 && movement.reverse {
+                new_value = curve_min;
+            } else if current_position < 0.5 && !movement.reverse {
                 new_value = curve_min;
             } else {
                 new_value = curve_max;
