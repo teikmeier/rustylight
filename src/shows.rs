@@ -143,7 +143,7 @@ impl Scene {
     pub fn update_state(&mut self, patch: ShowUpdate) {
         let current_tempo = patch.tempo.unwrap_or(DEFAULT_TEMPO);
         for fader in &mut self.faders {
-            fader.update_state(current_tempo, self.start_time);
+            fader.update_state(current_tempo, self.start_time, patch.notes);
         }
     }
 

@@ -9,7 +9,8 @@ pub struct Fader {
     channel: usize,
     value: u8,
     current_value: u8,
-    movement: Option<Movement>
+    movement: Option<Movement>,
+    midi_params: Option<MidiParams>,
 }
 
 #[derive(Debug)]
@@ -52,19 +53,41 @@ impl fmt::Display for Shape {
     }
 }
 
+struct MidiParams {
+    note: u8,
+    timeout: u64,
+}
+
 impl Fader {
     pub fn get_value(&self) -> u8 {
         match &self.fader_type {
             FaderType::Default => self.current_value,
-            _ => 0
+            FaderType::Midi => 0,
         }
     }
 
-    pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant) {
-        if let Some(movement) = &self.movement {
-            self.current_value = calculate_movement(movement, selected_tempo, start_time);
-        } else {
-            self.current_value = self.value;
+    pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant, notes: [Option<u8>; 128]) {
+        match &self.fader_type {
+            FaderType::Default => {
+                if let Some(movement) = &self.movement {
+                    self.current_value = calculate_movement(movement, selected_tempo, start_time);
+                } else {
+                    self.current_value = self.value;
+                }
+            },
+            FaderType::Midi => {
+                if let Some(midi_params) = &self.midi_params {
+                    if let Some(note_velocity) = notes[midi_params.note as usize] {
+                        if note_velocity > 0 {
+                            self.current_value = self.value;
+                        } else {
+                            self.current_value = 0;
+                        }
+                    }
+                } else {
+                    self.current_value = 0;
+                }
+            }
         }
     }
 
@@ -83,6 +106,7 @@ pub fn fader_from_mapping(channel: &Value, properties: &Value) -> Option<Fader> 
         value: 0,
         current_value: 0,
         movement: None,
+        midi_params: None,
     };
     if let Some(props) = properties.as_mapping() {
         for (key, value) in props.iter() {
@@ -98,6 +122,8 @@ pub fn fader_from_mapping(channel: &Value, properties: &Value) -> Option<Fader> 
                 }
             } else if key.is_string() && key.eq("movement") && value.is_mapping() {
                 fader.movement = Some(movement_from_mapping(value.as_mapping().unwrap()));
+            } else if key.is_string() && key.eq("params") && value.is_mapping() {
+                fader.midi_params = Some(midi_params_from_mapping(value.as_mapping().unwrap()));
             }
         }
     }
@@ -177,6 +203,21 @@ fn movement_from_mapping(movement_input: &Mapping) -> Movement {
         movement.delay_percentage = Some(0);
     }
     movement
+}
+
+fn midi_params_from_mapping(midi_params_input: &Mapping) -> MidiParams {
+    let mut midi_params = MidiParams {
+        note: 0,
+        timeout: 2000 // Default timeout of 2 seconds
+    };
+    for (key, value) in midi_params_input.iter() {
+        if key.is_string() && key.as_str().unwrap().eq("note") && value.is_number() {
+            midi_params.note = value.as_u64().unwrap() as u8;
+        } else if key.is_string() && key.as_str().unwrap().eq("timeout") && value.is_number() {
+            midi_params.timeout = value.as_u64().unwrap();
+        }
+    }
+    midi_params
 }
 
 fn calculate_movement(movement: &Movement, beats_per_minute: u8, start_time: Instant) -> u8 {
