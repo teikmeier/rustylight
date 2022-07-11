@@ -3,6 +3,7 @@ use serde_yaml::Mapping;
 use std::time::Instant;
 use std::f64::consts::PI;
 use std::fmt;
+use log::{debug};
 
 pub struct Fader {
     fader_type: FaderType,
@@ -11,6 +12,7 @@ pub struct Fader {
     current_value: u8,
     movement: Option<Movement>,
     midi_params: Option<MidiParams>,
+    timeout_start: Option<Instant>,
 }
 
 #[derive(Debug)]
@@ -62,7 +64,12 @@ impl Fader {
     pub fn get_value(&self) -> u8 {
         match &self.fader_type {
             FaderType::Default => self.current_value,
-            FaderType::Midi => 0,
+            FaderType::Midi => {
+                if self.current_value != 0 {
+                    debug!("Sending {}", self.current_value);
+                }
+                0
+            },
         }
     }
 
@@ -79,9 +86,18 @@ impl Fader {
                 if let Some(midi_params) = &self.midi_params {
                     if let Some(note_velocity) = notes[midi_params.note as usize] {
                         if note_velocity > 0 {
+                            self.timeout_start = Some(Instant::now());
                             self.current_value = self.value;
                         } else {
+                            debug!("Stopped due to note off");
                             self.current_value = 0;
+                        }
+                    }
+                    if let Some(timeout_start) = &self.timeout_start {
+                        if timeout_start.elapsed().as_millis() as u64 >= midi_params.timeout {
+                            debug!("Reached time out after {}ms", midi_params.timeout);
+                            self.current_value = 0;
+                            self.timeout_start = None;
                         }
                     }
                 } else {
@@ -107,12 +123,12 @@ pub fn fader_from_mapping(channel: &Value, properties: &Value) -> Option<Fader> 
         current_value: 0,
         movement: None,
         midi_params: None,
+        timeout_start: None,
     };
     if let Some(props) = properties.as_mapping() {
         for (key, value) in props.iter() {
             if key.is_string() && key.eq("value") && value.is_number() {
                 fader.value = value.as_u64().unwrap() as u8;
-                fader.current_value = value.as_u64().unwrap() as u8;
             } else if key.is_string() && key.eq("type") && value.is_string() {
                 let fader_type = value.as_str().unwrap();
                 match fader_type {
