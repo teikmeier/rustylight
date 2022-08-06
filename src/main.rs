@@ -57,7 +57,7 @@ fn start_game_loop(config: &BaseConfig, mut show: Show, mut dmx_port: Dmxis, mid
         let update = midi_port.read_all();
 
         // Update internal state
-        show.update_state(update);
+        show.update_state(update, &config);
 
         // Render internal state to DMX
         let dmx_data = show.get_dmx_data();

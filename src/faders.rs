@@ -1,9 +1,10 @@
+use crate::configuration::BaseConfig;
 use serde_yaml::Value;
 use serde_yaml::Mapping;
 use std::time::Instant;
 use std::f64::consts::PI;
 use std::fmt;
-use log::{debug};
+use log::{debug, trace};
 
 pub struct Fader {
     fader_type: FaderType,
@@ -66,14 +67,14 @@ impl Fader {
             FaderType::Default => self.current_value,
             FaderType::Midi => {
                 if self.current_value != 0 {
-                    debug!("Sending {}", self.current_value);
+                    debug!("Midi fader set to {}", self.current_value);
                 }
                 0
             },
         }
     }
 
-    pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant, notes: [Option<u8>; 128]) {
+    pub fn update_state(&mut self, selected_tempo: u8, start_time: Instant, notes: [Option<u8>; 128], config: &BaseConfig) {
         match &self.fader_type {
             FaderType::Default => {
                 if let Some(movement) = &self.movement {
@@ -89,16 +90,19 @@ impl Fader {
                             self.timeout_start = Some(Instant::now());
                             self.current_value = self.value;
                         } else {
-                            debug!("Stopped due to note off");
+                            trace!("Stopped due to note off");
                             self.current_value = 0;
                         }
                     }
                     if let Some(timeout_start) = &self.timeout_start {
                         if timeout_start.elapsed().as_millis() as u64 >= midi_params.timeout {
-                            debug!("Reached time out after {}ms", midi_params.timeout);
+                            trace!("Reached time out after {}ms", midi_params.timeout);
                             self.current_value = 0;
                             self.timeout_start = None;
                         }
+                    }
+                    if !config.midi_faders {
+                        self.current_value = 0;
                     }
                 } else {
                     self.current_value = 0;
@@ -229,7 +233,7 @@ fn midi_params_from_mapping(midi_params_input: &Mapping) -> MidiParams {
     for (key, value) in midi_params_input.iter() {
         if key.is_string() && key.as_str().unwrap().eq("note") && value.is_number() {
             midi_params.note = value.as_u64().unwrap() as u8;
-        } else if key.is_string() && key.as_str().unwrap().eq("timeout") && value.is_number() {
+        } else if key.is_string() && key.as_str().unwrap().eq("timeout_ms") && value.is_number() {
             midi_params.timeout = value.as_u64().unwrap();
         }
     }

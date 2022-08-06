@@ -25,7 +25,7 @@ pub struct Show {
 }
 
 impl Show {
-    pub fn update_state(&mut self, mut patch: ShowUpdate) {
+    pub fn update_state(&mut self, mut patch: ShowUpdate, config: &BaseConfig) {
         if let Some(next_song) = patch.song {
             if self.selected_song != next_song {
                 if self.songs.len() > next_song {
@@ -52,7 +52,7 @@ impl Show {
         }
 
         if self.songs.len() > self.selected_song {
-            self.songs[self.selected_song].update_state(patch);
+            self.songs[self.selected_song].update_state(patch, &config);
         }
     }
 
@@ -85,6 +85,7 @@ pub struct Song {
     name: String,
     scenes: Vec<Scene>,
     selected_scene: usize,
+    notes: [Option<u8>; 128],
 }
 
 impl Song {
@@ -93,7 +94,7 @@ impl Song {
         self.print_selected_scene()
     }
 
-    pub fn update_state(&mut self, patch: ShowUpdate) {
+    pub fn update_state(&mut self, mut patch: ShowUpdate, config: &BaseConfig) {
         if let Some(next_scene) = patch.scene {
             if self.selected_scene != next_scene {
                 if self.scenes.len() > next_scene {
@@ -104,8 +105,11 @@ impl Song {
             }
         }
 
+        self.notes = merge_notes(self.notes, patch.notes);
+        patch.notes = self.notes;
+
         if self.scenes.len() > self.selected_scene {
-            self.scenes[self.selected_scene].update_state(patch);
+            self.scenes[self.selected_scene].update_state(patch, &config);
         }
     }
 
@@ -140,10 +144,10 @@ impl Scene {
         self.start_time = Instant::now();
     }
 
-    pub fn update_state(&mut self, patch: ShowUpdate) {
+    pub fn update_state(&mut self, patch: ShowUpdate, config: &BaseConfig) {
         let current_tempo = patch.tempo.unwrap_or(DEFAULT_TEMPO);
         for fader in &mut self.faders {
-            fader.update_state(current_tempo, self.start_time, patch.notes);
+            fader.update_state(current_tempo, self.start_time, patch.notes, &config);
         }
     }
 
@@ -158,6 +162,16 @@ impl Scene {
     pub fn print_content(&self, index: usize) {
         debug!("    {} {}", index, self.name);
     }
+}
+
+fn merge_notes(notes_old: [Option<u8>; 128], notes_new: [Option<u8>; 128]) -> [Option<u8>; 128] {
+    let mut notes_merge = notes_old;
+    for (index, note) in notes_new.iter().enumerate() {
+        if let Some(_) = note {
+            notes_merge[index] = *note;
+        }
+    }
+    notes_merge
 }
 
 pub fn load_show(config: &BaseConfig) -> Option<Show> {
@@ -192,6 +206,7 @@ fn load_song_from_path(path: &Path) -> Option<Song> {
         name: String::from(path.file_name().unwrap().to_str().unwrap()),
         scenes: Vec::new(),
         selected_scene: 0,
+        notes: [None; 128],
     };
     let paths = get_ordered_subpaths_as_iter(path);
     for subpath in paths {

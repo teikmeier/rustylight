@@ -16,6 +16,7 @@ pub struct BaseConfig {
     pub show_path: String,
     pub midi_channel: u8,
     pub midi_port: String,
+    pub midi_faders: bool,
     pub fps: u64,
     pub log_level: String,
 }
@@ -30,6 +31,7 @@ impl Default for BaseConfig {
             show_path: String::from("default_show"),
             midi_channel: 1,
             midi_port: String::from("M-Audio MIDISPORT Uno"),
+            midi_faders: false,
             fps: 20,
             log_level: String::from("info"),
         }
