@@ -69,7 +69,7 @@ impl Fader {
                 if self.current_value != 0 {
                     debug!("Midi fader set to {}", self.current_value);
                 }
-                0
+                self.current_value
             },
         }
     }
