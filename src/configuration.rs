@@ -39,7 +39,9 @@ impl Default for BaseConfig {
 }
 
 pub fn load() -> Result<BaseConfig, confy::ConfyError> {
-    let config = confy::load("rusty-light");
+    let config = confy::load("rusty-light", None);
+    let config_path = confy::get_configuration_file_path("rusty-light", None);
+    println!("Config location:         {}", config_path?.into_os_string().into_string().unwrap());
     if config.is_err() {
         println!("Couldn't load config. Make sure your config file contains all required fields.");
         config

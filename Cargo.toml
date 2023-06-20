@@ -9,7 +9,7 @@ edition = "2021"
 rand = "0.8.5"
 serde = { version = "^1.0", features = ["derive"] }
 serde_yaml = "^0.8"
-confy = "^0.4"
+confy = "^0.5.1"
 serialport = "^4"
 derive_more = "^0.99"
 midir = "^0.7"
