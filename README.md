@@ -42,3 +42,12 @@ Or the download-section of Enttec in general:
 
 A helpful introduction to midi messages:
 - https://cmtext.indiana.edu/MIDI/chapter3_MIDI.php
+
+## Wish list
+- Introduce Artnet support
+- Fix dmx beyond channel 256
+- Browser support for scene creation and verification
+- Easy moving head controls
+- Tempo over midi
+- Fix midi input bugs
+- Ease configuration
