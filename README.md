@@ -46,7 +46,7 @@ A helpful introduction to midi messages:
 ## Wish list
 - Introduce Artnet support
 - Fix dmx beyond channel 256
-- Browser support for scene creation and verification
+- Browser support for scene creation, verification, and demoing
 - Easy moving head controls
 - Tempo over midi
 - Fix midi input bugs
