@@ -51,3 +51,4 @@ A helpful introduction to midi messages:
 - Tempo over midi
 - Fix midi input bugs
 - Ease configuration
+- Add a build in default show
